@@ -1,26 +1,12 @@
 /*
-  WriteSingleField
-  
-  Description: Writes a value to a channel on ThingSpeak every 20 seconds.
-  
-  Hardware: ESP32 based boards
-  
-  !!! IMPORTANT - Modify the secrets.h file for this project with your network connection and ThingSpeak channel details. !!!
-  
-  Note:
-  - Requires installation of EPS32 core. See https://github.com/espressif/arduino-esp32/blob/master/docs/arduino-ide/boards_manager.md for details. 
-  - Select the target hardware from the Tools->Board menu
-  - This example is written for a network using WPA encryption. For WEP or WPA, change the WiFi.begin() call accordingly.
-  
-  ThingSpeak ( https://www.thingspeak.com ) is an analytic IoT platform service that allows you to aggregate, visualize, and 
-  analyze live data streams in the cloud. Visit https://www.thingspeak.com to sign up for a free account and create a channel.  
-  
-  Documentation for the ThingSpeak Communication Library for Arduino is in the README.md folder where the library was installed.
-  See https://www.mathworks.com/help/thingspeak/index.html for the full ThingSpeak documentation.
-  
-  For licensing information, see the accompanying license file.
-  
-  Copyright 2020, The MathWorks, Inc.
+  Lab 7.1 ThingSpeak
+  Simple mood tracker using M5Core2 and ThingSpeak
+
+  Name: Levi Terry
+  Email: lterry80052uat.edu
+  Due Date: 6/28/25
+  Class: CSC230: Internet of Things
+  Professor: Prof. Prater
 */
 
 #include <WiFi.h>
