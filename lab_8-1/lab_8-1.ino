@@ -22,9 +22,11 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+  Firebase.setString("Screen_Color", "BLACK");
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  String fireStatus = Firebase.getString("Screen_Color");
 
+  M5.Lcd.fillScreen(fireStatus);
 }
