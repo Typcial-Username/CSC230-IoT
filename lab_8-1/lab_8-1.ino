@@ -28,5 +28,23 @@ void setup() {
 void loop() {
   String fireStatus = Firebase.getString("Screen_Color");
 
-  M5.Lcd.fillScreen(fireStatus);
+  if (fireStatus == "BLACK")
+  {
+    M5.Lcd.fillScreen(BLACK);
+  } else if (fireStatus == "RED")
+  {
+    M5.Lcd.fillScreen(RED);
+  } else if (fireStatus == "BLUE")
+  {
+    M5.Lcd.fillScreen(BLUE);
+  } else if (fireStatus == "WHITE")
+  {
+    M5.Lcd.fillScreen(WHITE);
+  } else if (fireStatus == "GREEN")
+  {
+    M5.Lcd.fillScreen(GREEN);
+  } else if (fireStatus == "PURPLE")
+  {
+    M5.Lcd.fillScreen(PURPLE);
+  }
 }
