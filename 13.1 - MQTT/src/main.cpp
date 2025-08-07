@@ -14,6 +14,8 @@ PubSubClient mqttClient(espClient);
 int count = 0;
 int lastMessagePos = 20;
 
+char messages[9][25] = {};  // Array of char arrays, each can store up to 25 characters
+
 void setup() {
   Serial.begin(115200);
   connectToWiFi();
@@ -75,13 +77,32 @@ void mqttCallback(char *mqttTopic, byte *payload, unsigned int length) {
 
   Serial.println(message);
 
+  // Check if the next message will overflow the screen
+  if (count > 0 && count % 9 == 0) {
+    // Clear the screen and reset messages array
+    Serial.println("Messages array is full, resetting...");
+    memset(messages, 0, sizeof(messages));
+    lastMessagePos = 20;
+    M5.Lcd.clearDisplay();
+  }
+  
+  // Add the new message to the array
+  strncpy(messages[count % 9], message.c_str(), 24);
+  messages[count % 9][24] = '\0';  // Ensure null termination
+
   Serial.println("\n--------------------");
   count++;
 
+  M5.Lcd.fillRect(0, 0, M5.lcd.width(), 20, BLACK); // Reset the top area for count display
+
+  // Display the count in blue at the top
   M5.Lcd.setCursor(10, 0);
+  M5.Lcd.setTextColor(BLUE);
   M5.Lcd.print("Count: " + String(count));
 
+  // Display the message in white below the count
   M5.Lcd.setCursor(10, lastMessagePos);
+  M5.Lcd.setTextColor(WHITE);
   M5.Lcd.print(message);
   lastMessagePos += 25;
 }
