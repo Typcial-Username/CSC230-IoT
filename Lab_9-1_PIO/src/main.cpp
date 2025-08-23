@@ -31,7 +31,7 @@ RealtimeDatabase database;
 
 AsyncResult databaseResult;
 
-unsigned long sendDataPrevMillis = 0;
+unsigned long recieveDataPrevMillis = 0;
 int count = 0;
 bool signupOK = false;
 
@@ -53,19 +53,6 @@ void setup() {
   Serial.print("Connected to WiFi with IP: ");
   Serial.println(WiFi.localIP());
 
-  // config.api_key = FIREBASE_AUTH;
-  // config.database_url = FIREBASE_HOST;
-
-  // if (Firebase.signUp(&config, &auth, "", "")) {
-  //   Serial.println("Connected to 🔥 Firebase");
-  //   signupOK = true;
-  // } else {
-  //   Serial.printf("%s\n", config.signer.signupError.message.c_str());
-  // }
-
-  // config.token_status_callback = tokenStatusCallback;
-  // Firebase.begin(&config, &auth);
-  // Firebase.reconnectWiFi(true);
   sslClient.setInsecure();
   initializeApp(aClient, app, getAuth(userAuth), processData);
   app.getApp<RealtimeDatabase>(database);
@@ -99,8 +86,8 @@ void loop() {
     return;
   }
 
-  if (millis() - sendDataPrevMillis < 5000) return;
-  sendDataPrevMillis = millis();
+  if (millis() - recieveDataPrevMillis < 5000) return;
+  recieveDataPrevMillis = millis();
 
   String intPath = "test/int";
   database.set(aClient, intPath, count);
