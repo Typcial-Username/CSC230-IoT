@@ -1,21 +1,20 @@
+/**
+ * Assignment 9.1: Using Google Firebase to Record Data
+ * Author: Levi Terry
+ * Due: 7/20/25
+ *
+ * Description: Uses the FirebaseClient library to send an int and a float to Firebase and display the results on an M5Stack Core2.
+ */
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
-// #include <Firebase_ESP_Client.h>
 #include <M5Core2.h>
 
 #include <FirebaseClient.h>
 #include <FirebaseJson.h>
 
-
-// #include "addons/TokenHelper.h"
-// #include "addons/RTDBHelper.h"
-
 #include "secrets.h"
-
-// FirebaseData fbdo;
-// FirebaseAuth auth;
-// FirebaseConfig config;
 
 // Global variables
 using AsyncClient = AsyncClientClass;
