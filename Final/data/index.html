@@ -8,34 +8,82 @@
 <body>
     <h1>Todo List</h1>
     <p>powererd by M5stack Core2</p>
-    <div class="task-container"></div>
+    <div class="task-container">
+        <div id="tasks"></div>
+        <div id="debugLog"></div>
+    </div>
 
     <script>
         // How often to automatically refresh tasks
         const TASK_REFRESH_INTERVAL = 5000;
         let tasks = [];
+
+        function debugLog(message) {
+            const log = document.getElementById('debugLog');
+            const time = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<strong>${time}</strong>: ${message}`;
+            log.appendChild(logEntry);
+            log.scrollTop = log.scrollHeight; // Auto-scroll to bottom
+            console.log(message); // Also log to console
+        }
         
         // Grab the tasks from Firebase
         async function getTasks() {
-            console.log("Fetching tasks...");
+            debugLog("Fetching tasks...");
+            const taskContainer = document.querySelector('.task-container');  
+            const taskArea = document.getElementById("tasks");
+
             try {
                 const response = await fetch('/api/tasks');
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
                 }
 
-                let retrievedTasks = await response.json()
-                
-                console.log(`Retieved Tasks: ${retrievedTasks}`)
+                const text = await response.text();
+
+                debugLog(`Response Text: ${text}`);
+
+                if (text.trim() !== "" ) {
+                    try {
+                        tasks = await JSON.parse(text);
+
+                        // Display tasks
+                        if (tasks.length === 0) {
+                            const taskArea = document.getElementById("tasks");
+                            taskArea.innerHTML = "<p>No tasks found</p>";
+                        } else {
+                            tasks.forEach(task => {
+                                const taskElement = document.createElement('div');
+                                taskElement.className = 'task';
+                                taskElement.innerHTML = `
+                                    <h2>${task.taskName || 'Untitled'}</h2>
+                                    <p>Due: ${task.dueDate || 'No due date'}</p>
+                                    <p>Priority: ${task.priority || 'None'}</p>
+                                    <p>Status: ${task.completed ? 'Completed' : 'Pending'}</p>
+                                    <button onclick="deleteTask(${task.id})">Delete</button>
+                                `;
+                                taskArea.appendChild(taskElement);
+                            });
+                        }
+                    } catch (err) {
+                        debugLog(`Error parsing JSON: ${err.message}`);
+                    }
+
+                } else {
+                    debugLog("Empty response received");
+                    tasks = [];
+                }
+
+                debugLog(`Retrieved Tasks: ${tasks}`)
                 displayTasks();
-                tasks = retrievedTasks;
             } catch (error) {
-                console.error('Error fetching tasks:', error);
+                debugLog('Error fetching tasks:', error);
             }
         }
 
         function displayTasks() {
-            const taskContainer = document.querySelector('.task-container');
+            const taskContainer = document.querySelector('#tasks');
 
             tasks.forEach(task => {
                 const taskElement = document.createElement('div');

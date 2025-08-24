@@ -206,9 +206,18 @@ void processData(AsyncResult &aResult)
   {
     Serial.printf("task: %s, payload: %s\n", aResult.uid().c_str(), aResult.c_str());
 
-    FirebaseJson jsonData(aResult.c_str());
+    String jsonResult = aResult.c_str();
+    FirebaseJson jsonData(jsonResult);
+
+    if (jsonResult.equals("null") || jsonResult.equals("") || jsonResult.equals("{}")) {
+      Serial.println("No valid JSON data received");
+      return;
+    }
 
     size_t len = jsonData.iteratorBegin();
+    // tasks.clear();
+
+    Serial.printf("Number of tasks: %d\n", len);
     
     String key, value;
     int type;
@@ -268,7 +277,7 @@ void processData(AsyncResult &aResult)
 
 void getTasks() {
   Serial.println("Fetching tasks from Firebase...");
-  database.get(aClient, "/Tasks/", databaseResult);
+  database.get(aClient, "/Tasks/");
   Serial.println("Fetched tasks from Firebase...");
   Serial.println(databaseResult.c_str());
 }
@@ -303,6 +312,32 @@ void handleRoot() {
 // Format the tasks for JSON
 void handleGetTasks() {
   Serial.println("Handling GET tasks request");
+
+  // getTasks();
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (tasks.size() == 0) {
+    Serial.println("No tasks in list, adding a default task");
+    
+    // Create a default task for testing
+    TaskData defaultTask = { 1, "Default Task", "2025-08-23", 2, false };
+
+    // Add to tasks vector
+    tasks.push_back(defaultTask);
+    
+    // Also add to Firebase
+    FirebaseJson json;
+    json.set("id", 1);
+    json.set("taskName", "Default Task");
+    json.set("dueDate", "2025-08-23");
+    json.set("priority", 2);
+    json.set("completed", false);
+    
+    database.set(aClient, "/Tasks/1", json);
+  }
+
   String json = "[";
   for (size_t i = 0; i < tasks.size(); i++) {
     json += "{";
@@ -332,6 +367,11 @@ void handleGetTasks() {
 
   json += "]";
   server.send(200, "application/json", json);
+  Serial.print("Sent tasks JSON:");
+  Serial.println(json);
+
+  getTasks(); // Refresh tasks after sending
+
 }
 
 void handlePostTask() {
