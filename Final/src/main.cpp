@@ -4,15 +4,16 @@
 #include <WiFiClientSecure.h>
 #include <Arduino_Json.h>
 #include <vector>
+#include <WebServer.h>
+#include <SPIFFS.h>
 
+// #ifndef FIREBASE_SSE_TIMEOUT_MS
+// #define FIREBASE_SSE_TIMEOUT_MS 40000
+// #endif
 
-#ifndef FIREBASE_SSE_TIMEOUT_MS
-#define FIREBASE_SSE_TIMEOUT_MS 40000
-#endif
-
-#ifndef ENABLE_ID_TOKEN
-#define ENABLE_ID_TOKEN
-#endif
+// #ifndef ENABLE_ID_TOKEN
+// #define ENABLE_ID_TOKEN
+// #endif
 
 // Firebase Imports
 #include <FirebaseClient.h>
@@ -23,7 +24,7 @@
 // Local Imports
 #include "secrets.h"
 #include "Types.h"
-#include "Button.h"
+#include "TaskButton.h"
 
 // Global variables
 using AsyncClient = AsyncClientClass;
@@ -42,10 +43,22 @@ AsyncResult databaseResult;
 
 std::vector<TaskData> tasks;
 
+TaskData testTask;
+TaskButton exButton;
+
 // Prototypes
 void processData(AsyncResult &aResult);
 void getTasks();
 void checkOffTask(TaskData task);
+
+void handleRoot();
+void handleGetTasks();
+void handlePostTask();
+void handleDeleteTask();
+
+bool testTaskSent = false;
+
+WebServer server(80);
 
 void setup() {
   Serial.begin(115200);
@@ -55,17 +68,41 @@ void setup() {
 
   Serial.println("Initializing..");
 
+  if (!SPIFFS.begin(true)) {
+    Serial.println("SPIFFS Mount Failed");
+    return;
+  }
+
   // Setup WiFi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to WiFi");
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
     delay(300);
   }
 
+  if (!WiFi.softAP("TODO_AP", "")) {
+    Serial.println("Failed to create Access Point");
+  }
+
   Serial.println();
+
+  IPAddress localIP = WiFi.localIP();
   Serial.print("Connected to WiFi. IP Address: ");
-  Serial.println(WiFi.localIP());
+  Serial.println(localIP);
   Serial.println();
+
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/api/tasks", HTTP_GET, handleGetTasks);
+  server.on("/api/tasks", HTTP_POST, handlePostTask);
+  server.on("/api/tasks", HTTP_DELETE, handleDeleteTask);
+
+  server.begin();
+  IPAddress serverIP = WiFi.softAPIP();
+  Serial.print("HTTP server started on http://");
+  Serial.print(serverIP);
+  Serial.println(":80");
+  // Serial.println(server.port());
 
   sslClient.setInsecure(); // Disable SSL certificate verification for simplicity
 
@@ -74,10 +111,13 @@ void setup() {
   app.getApp<RealtimeDatabase>(database);
   database.url(FIREBASE_URL);
 
+  // Send a test task to Firebase
+  testTask = {2, "Test Task 2", "2023-12-31", 1, false};
+
   M5.begin();
   M5.Lcd.setTextSize(2);
 
-
+  exButton = TaskButton(100, 100, 200, 50, testTask, true);
 
   Serial.println("Initialized!");
 }
@@ -86,6 +126,7 @@ unsigned long authStart = millis();
 
 void loop() {
   app.loop();
+  server.handleClient();
 
   // if (!userAuth.isInitialized() || !app.ready()) {
   //   Serial.println("Waiting for Firebase App to be ready...");
@@ -109,23 +150,32 @@ void loop() {
     return;
   }
 
-  // Send a test task to Firebase
-  TaskData testTask = {1, "Test Task", "2023-12-31", 1, false};
-
-  FirebaseJson taskJson;
-  taskJson.set("id", testTask.id);
-  taskJson.set("taskName", testTask.taskName);
-  taskJson.set("dueDate", testTask.dueDate);
-  taskJson.set("priority", testTask.priority);
-  taskJson.set("completed", testTask.completed);
-
-  String taskPath = "Task";
-  taskPath += String(testTask.id);
+  if (!testTaskSent)
+  {
+    FirebaseJson taskJson;
+    taskJson.set("id", testTask.id);
+    taskJson.set("taskName", testTask.taskName);
+    taskJson.set("dueDate", testTask.dueDate);
+    taskJson.set("priority", testTask.priority);
+    taskJson.set("completed", testTask.completed);
   
-  database.set(aClient, taskPath, taskJson);
+    String taskPath = "/Tasks/";
+    taskPath += String(testTask.id);
+  
+    database.set(aClient, taskPath, object_t (taskJson.raw()));
+    Serial.println(taskJson.raw());
+
+    testTaskSent = true;
+  }
+
+  delay(2500);
 
   // Get tasks from Firebase
   getTasks();
+
+  if (exButton.isPressed()) {
+    exButton.setFill(GREEN);
+  }
 
   if (aClient.lastError().code() == 0)
    {
@@ -133,6 +183,7 @@ void loop() {
    } else 
    {
     Serial.print("Error setting value: ");
+    Serial.print(aClient.lastError().code());
     Serial.println(aClient.lastError().message());
    }
 
@@ -177,21 +228,34 @@ void processData(AsyncResult &aResult)
         int priority;
         bool completed;
 
-        taskJson.get(taskData, "id", id);
-        taskJson.get(taskData, "taskName", taskName);
-        taskJson.get(taskData, "dueDate", dueDate);
-        taskJson.get(taskData, "priority", priority);
-        taskJson.get(taskData, "completed", completed);
+        TaskData task = {};
 
-        TaskData task = {
-          .id = id,
-          .taskName = taskName.c_str(),
-          .dueDate = dueDate.c_str(),
-          .priority = priority,
-          .completed = completed
-        };
+        if (taskJson.get(taskData, "id", id)) {
+          task.id = id;
+        }
+        if (taskJson.get(taskData, "taskName", taskName)) {
+          task.taskName = taskName.c_str();
+        }
+        if (taskJson.get(taskData, "dueDate", dueDate)) {
+          task.dueDate = dueDate.c_str();
+        }
+        if (taskJson.get(taskData, "priority", priority)) {
+          task.priority = priority;
+        }
+        if (taskJson.get(taskData, "completed", completed)) {
+          task.completed = completed;
+        }
+
+        // TaskData task = {
+        //   .id = id,
+        //   .taskName = taskName.c_str(),
+        //   .dueDate = dueDate.c_str(),
+        //   .priority = priority,
+        //   .completed = completed
+        // };
 
         tasks.push_back(task);
+        Serial.printf("Recieved %d tasks\n", tasks.size());
       }
 
       jsonData.iteratorEnd();
@@ -203,7 +267,10 @@ void processData(AsyncResult &aResult)
 }
 
 void getTasks() {
-  database.get(aClient, "/tasks");
+  Serial.println("Fetching tasks from Firebase...");
+  database.get(aClient, "/Tasks/", databaseResult);
+  Serial.println("Fetched tasks from Firebase...");
+  Serial.println(databaseResult.c_str());
 }
 
 void checkOffTask(TaskData task) {
@@ -217,7 +284,60 @@ void checkOffTask(TaskData task) {
   jsonData.set("priority", task.priority);
   jsonData.set("completed", task.completed);
 
-  String path = "/tasks/";
+  String path = "/Tasks/";
   path += String(task.id);
-  database.set(aClient, path, jsonData);
+  database.set(aClient, path, jsonData.raw());
+}
+
+void handleRoot() {
+  File file = SPIFFS.open("/index.html", "r");
+  if (file) {
+    server.streamFile(file, "text/html");
+    file.close();
+  } 
+  else {
+    server.send(404, "text/plain", "File not found");
+  }
+}
+
+// Format the tasks for JSON
+void handleGetTasks() {
+  Serial.println("Handling GET tasks request");
+  String json = "[";
+  for (size_t i = 0; i < tasks.size(); i++) {
+    json += "{";
+    json += "\"id\":";
+    json += String(tasks[i].id);
+    json += ",";
+
+    json += "\"taskName\":\"";
+    json += tasks[i].taskName.c_str();
+    json += "\",";
+
+    json += "\"dueDate\":\"";
+    json += tasks[i].dueDate.c_str();
+    json += "\",";
+
+    json += "\"priority\":";
+    json += String(tasks[i].priority);
+    json += ",";
+
+    json += "\"completed\":";
+    json += String(tasks[i].completed ? "true" : "false");
+
+    json += "}";
+
+    if (i < tasks.size() - 1) json += ",";
+  }
+
+  json += "]";
+  server.send(200, "application/json", json);
+}
+
+void handlePostTask() {
+  server.send(200, "text/plain", "Post task endpoint not implemented yet");
+}
+
+void handleDeleteTask() {
+  server.send(200, "text/plain", "Delete task endpoint not implemented yet");
 }

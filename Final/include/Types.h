@@ -1,3 +1,6 @@
+#ifndef TASK_TYPES_H
+#define TASK_TYPES_H
+
 #include <string>
 
 struct TaskData {
@@ -7,3 +10,5 @@ struct TaskData {
   int priority;
   bool completed;
 };
+
+#endif

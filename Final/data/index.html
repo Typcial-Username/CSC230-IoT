@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo List</title>
+</head>
+<body>
+    <h1>Todo List</h1>
+    <p>powererd by M5stack Core2</p>
+    <div class="task-container"></div>
+
+    <script>
+        // How often to automatically refresh tasks
+        const TASK_REFRESH_INTERVAL = 5000;
+        let tasks = [];
+        
+        // Grab the tasks from Firebase
+        async function getTasks() {
+            console.log("Fetching tasks...");
+            try {
+                const response = await fetch('/api/tasks');
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                let retrievedTasks = await response.json()
+                
+                console.log(`Retieved Tasks: ${retrievedTasks}`)
+                displayTasks();
+                tasks = retrievedTasks;
+            } catch (error) {
+                console.error('Error fetching tasks:', error);
+            }
+        }
+
+        function displayTasks() {
+            const taskContainer = document.querySelector('.task-container');
+
+            tasks.forEach(task => {
+                const taskElement = document.createElement('div');
+                taskElement.className = 'task';
+                taskElement.innerHTML = `
+                    <h2>${task.taskName}</h2>
+                    <p>Priority: ${task.priority}</p>
+                    <p>Status: ${task.status}</p>
+                    <button onclick="deleteTask('${task.id}')">Delete</button>
+                `;
+                taskContainer.appendChild(taskElement);
+            });
+        }
+
+        /**
+         * Delete a task
+         * @param {int} taskId - The ID of the task to delete
+         */
+        function deleteTask(taskId) {
+            console.log(`Deleting task with ID: ${taskId}`);
+            fetch(`/api/tasks/${taskId}`, {
+                method: 'DELETE'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                getTasks();
+            })
+            .catch(error => {
+                console.error('Error deleting task:', error);
+            });
+        }
+
+        // Fetch and display the tasks when the page loads
+        window.onload = async function() {
+            await getTasks();
+            displayTasks();
+            setInterval(getTasks, TASK_REFRESH_INTERVAL);
+        };
+
+    </script>
+</body>
+</html>
