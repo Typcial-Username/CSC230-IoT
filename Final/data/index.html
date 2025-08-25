@@ -8,15 +8,21 @@
 <body>
     <h1>Todo List</h1>
     <p>powererd by M5stack Core2</p>
+    <button class="refresh">Refresh Tasks</button>
+    <button id="add-task">Add Task</button>
+    
     <div class="task-container">
         <div id="tasks"></div>
         <div id="debugLog"></div>
     </div>
 
+
     <script>
         // How often to automatically refresh tasks
         const TASK_REFRESH_INTERVAL = 5000;
         let tasks = [];
+
+        document.querySelector('.refresh').addEventListener('click', getTasks);
 
         function debugLog(message) {
             const log = document.getElementById('debugLog');
@@ -33,6 +39,9 @@
             debugLog("Fetching tasks...");
             const taskContainer = document.querySelector('.task-container');  
             const taskArea = document.getElementById("tasks");
+
+            tasks = [];
+            taskArea.innerHTML = "<p>Loading tasks...</p>";
 
             try {
                 const response = await fetch('/api/tasks');
@@ -76,7 +85,7 @@
                 }
 
                 debugLog(`Retrieved Tasks: ${tasks}`)
-                displayTasks();
+                // displayTasks();
             } catch (error) {
                 debugLog('Error fetching tasks:', error);
             }
@@ -91,7 +100,7 @@
                 taskElement.innerHTML = `
                     <h2>${task.taskName}</h2>
                     <p>Priority: ${task.priority}</p>
-                    <p>Status: ${task.status}</p>
+                    <p>Completed: ${task.completed}</p>
                     <button onclick="deleteTask('${task.id}')">Delete</button>
                 `;
                 taskContainer.appendChild(taskElement);
@@ -104,7 +113,7 @@
          */
         function deleteTask(taskId) {
             console.log(`Deleting task with ID: ${taskId}`);
-            fetch(`/api/tasks/${taskId}`, {
+            fetch(`/api/tasks?id=${taskId}`, {
                 method: 'DELETE'
             })
             .then(response => {
@@ -122,7 +131,7 @@
         window.onload = async function() {
             await getTasks();
             displayTasks();
-            setInterval(getTasks, TASK_REFRESH_INTERVAL);
+            // setInterval(getTasks, TASK_REFRESH_INTERVAL);
         };
 
     </script>

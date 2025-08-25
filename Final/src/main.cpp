@@ -102,7 +102,6 @@ void setup() {
   Serial.print("HTTP server started on http://");
   Serial.print(serverIP);
   Serial.println(":80");
-  // Serial.println(server.port());
 
   sslClient.setInsecure(); // Disable SSL certificate verification for simplicity
 
@@ -251,8 +250,9 @@ void processData(AsyncResult &aResult)
         if (taskJson.get(taskData, "priority", priority)) {
           task.priority = priority;
         }
-        if (taskJson.get(taskData, "completed", completed)) {
-          task.completed = completed;
+        String completedStr;
+        if (taskJson.get(taskData, "completed", completedStr)) {
+          task.completed = (completedStr.equals("true") || completedStr.equals("1")) || completedStr == "true" ? true : false;
         }
 
         // TaskData task = {
@@ -266,11 +266,11 @@ void processData(AsyncResult &aResult)
         tasks.push_back(task);
         Serial.printf("Recieved %d tasks\n", tasks.size());
       }
-
-      jsonData.iteratorEnd();
-
-      Serial.printf("Key: %s, Value: %s\n", key.c_str(), value.c_str());
     }
+
+    jsonData.iteratorEnd();
+
+    Serial.printf("Key: %s, Value: %s\n", key.c_str(), value.c_str());
   }
 
 }
@@ -279,7 +279,7 @@ void getTasks() {
   Serial.println("Fetching tasks from Firebase...");
   database.get(aClient, "/Tasks/");
   Serial.println("Fetched tasks from Firebase...");
-  Serial.println(databaseResult.c_str());
+  // Serial.println(databaseResult.c_str());
 }
 
 void checkOffTask(TaskData task) {
@@ -287,6 +287,7 @@ void checkOffTask(TaskData task) {
   task.completed = true;
 
   FirebaseJson jsonData;
+
   jsonData.set("id", task.id);
   jsonData.set("taskName", task.taskName);
   jsonData.set("dueDate", task.dueDate);
@@ -295,7 +296,15 @@ void checkOffTask(TaskData task) {
 
   String path = "/Tasks/";
   path += String(task.id);
-  database.set(aClient, path, jsonData.raw());
+  
+  String jsonStr;
+  jsonData.toString(jsonStr);
+
+  if (!database.set(aClient, path, object_t(jsonStr))) {
+    Serial.print("Error updating task in Firebase");
+    Serial.print(aClient.lastError().code());
+    Serial.println(aClient.lastError().message());
+  }
 }
 
 void handleRoot() {
@@ -313,7 +322,7 @@ void handleRoot() {
 void handleGetTasks() {
   Serial.println("Handling GET tasks request");
 
-  // getTasks();
+  getTasks();
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -335,7 +344,7 @@ void handleGetTasks() {
     json.set("priority", 2);
     json.set("completed", false);
     
-    database.set(aClient, "/Tasks/1", json);
+    database.set(aClient, "/Tasks/1", object_t(json.raw()));
   }
 
   String json = "[";
@@ -379,5 +388,22 @@ void handlePostTask() {
 }
 
 void handleDeleteTask() {
-  server.send(200, "text/plain", "Delete task endpoint not implemented yet");
+  // Get params
+  if (!server.hasArg("id")) {
+    server.send(400, "text/plain", "Missing id parameter");
+    return;
+  }
+
+  int id = server.arg("id").toInt();
+
+  // Find and remove task from vector
+  auto it = std::remove_if(tasks.begin(), tasks.end(), [id](const TaskData &task) {
+    return task.id == id;
+  });
+
+  tasks.erase(it, tasks.end());
+
+  // Remove from Firebase
+  String path = "/Tasks/";
+  path += String(id);
 }
