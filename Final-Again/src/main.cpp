@@ -2,7 +2,7 @@
  * CSC230 Final
  * Author: Levi Terry
  * 
- * Description: Fetches random quotes from the Quotable API and displays them on the screen. Has autofetch
+ * Description: Fetches random quotes from the Quotable API and displays them on the screen. Has autofetch functionality and shows the current time
  */
 
 #include <Arduino.h>
@@ -14,12 +14,18 @@
 #include <algorithm>
 
 #include "secrets.h"
+#include "time.h"
 
 // Prototypes
 String getQuote();
 JSONVar parseJson(String jsonString);
 void drawWrappedText(String text, String author, int x, int y, int textSize = 2);
 String formatAutofetchDelay(int timeout);
+String getCurrentTime();
+String convertTo12HTime(String time24);
+
+int autoFetchTimeY = 25;
+int quoteY = 60;
 
 // Autofetch settings
 bool autoFetch = false;
@@ -28,6 +34,14 @@ unsigned long lastFetchTime = 0;
 
 // Timeout options 5s, 10s, 20s, 30s, 1m, 30m, 1h
 int timeouts[] = {5000, 10000, 20000, 30000, 60000, 1800000, 3600000};
+
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = -7 * 3600;
+const int daylightOffset_sec = 0;
+
+unsigned long lastTimeUpdate = 0;
+static int lastMinute = -1;
+struct tm startTimeInfo;
 
 void setup() {
   Serial.begin(115200);
@@ -48,14 +62,43 @@ void setup() {
   Serial.println(localIP);
   Serial.println();
 
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  
+  Serial.println("Current time: " + convertTo12HTime(getCurrentTime()));
+
   M5.begin();
 
   M5.Lcd.fillScreen(GREEN);
   M5.Lcd.setTextSize(2);
+
+  JSONVar quote = parseJson(getQuote());
+  M5.Lcd.setTextColor(BLACK, GREEN);
+  drawWrappedText(quote["content"], quote["author"], 5, quoteY);
 }
 
 void loop() {
   M5.update();
+
+  // Update time on screen (1/min)
+  if (getLocalTime(&startTimeInfo)) {
+    if (startTimeInfo.tm_min != lastMinute) {
+      lastMinute = startTimeInfo.tm_min;
+      String time = convertTo12HTime(getCurrentTime());
+
+      Serial.println("Current time: " + time);
+
+      // Center
+      int x = (M5.Lcd.width() - M5.Lcd.textWidth(time)) / 2;
+      int y = 5;
+
+      M5.Lcd.setCursor(x - 10, y);
+
+      M5.Lcd.fillRect(x - 10, y, M5.Lcd.textWidth("00:00"), 16, GREEN);
+
+      M5.Lcd.setTextColor(DARKGREY, GREEN);
+      M5.Lcd.drawString(time, x - 10, y);
+    }
+  }
 
   // BtnA manually gets quote
   if (M5.BtnA.wasPressed()) {
@@ -67,9 +110,9 @@ void loop() {
     JSONVar quote = parseJson(getQuote());
 
     // M5.Lcd.setCursor(10, 30);
-    M5.Lcd.fillScreen(GREEN);
+    M5.Lcd.fillRect(0, quoteY, M5.Lcd.width(), M5.Lcd.height() - 20, GREEN);
     M5.Lcd.setTextColor(BLACK, GREEN);
-    drawWrappedText(quote["content"], quote["author"], 5, 30);
+    drawWrappedText(quote["content"], quote["author"], 5, quoteY);
 
     // BtnB toggles auto-fetch
   } else if (M5.BtnB.pressedFor(500, 1500)) {
@@ -85,15 +128,15 @@ void loop() {
     currentTimeoutIdx = (currentTimeoutIdx + 1) % timeoutsLen;
     autoFetchTimeout = timeouts[currentTimeoutIdx];
 
-    M5.Lcd.fillRect(0, 0, M5.Lcd.width(), 20, GREEN);
+    M5.Lcd.fillRect(0, autoFetchTimeY, M5.Lcd.width(), 20, GREEN);
     
     Serial.println("Changed auto-fetch timeout to: " + String(autoFetchTimeout) + "ms");
   }
 
   if (autoFetch) {
     // Display current autofetch delay
-    M5.Lcd.fillCircle(320 / 2, 230, 5, BLUE);
-    M5.Lcd.setCursor(10, 5);
+    M5.Lcd.fillCircle(M5.Lcd.width() / 2, M5.Lcd.height() - 10, 5, BLUE);
+    M5.Lcd.setCursor(10, autoFetchTimeY);
     M5.Lcd.setTextColor(BLUE, WHITE);
     M5.Lcd.println("Autofetch delay: " + formatAutofetchDelay(autoFetchTimeout));
     M5.Lcd.setTextColor(BLACK, GREEN);
@@ -108,14 +151,14 @@ void loop() {
 
       JSONVar quote = parseJson(getQuote());
   
-      M5.Lcd.fillScreen(GREEN);
+      M5.Lcd.fillRect(0, quoteY, M5.Lcd.width(), M5.Lcd.height() - quoteY, GREEN);
       M5.Lcd.setTextColor(BLACK, GREEN);
-      drawWrappedText(quote["content"], quote["author"], 5, 30);
+      drawWrappedText(quote["content"], quote["author"], 5, quoteY);
     }
   } else {
-    M5.Lcd.fillRect((320 / 2) - 5, 225, 10, 10, GREEN);
-    M5.Lcd.setCursor(10, 0);
-    M5.Lcd.fillRect(10, 0, 300, 20, GREEN);
+    M5.Lcd.fillRect((M5.Lcd.width() / 2) - 5, M5.Lcd.height() - 10, 10, 10, GREEN);
+    M5.Lcd.setCursor(10, autoFetchTimeY);
+    M5.Lcd.fillRect(10, autoFetchTimeY, M5.Lcd.width(), quoteY - autoFetchTimeY, GREEN);
   }
 }
 
@@ -222,4 +265,43 @@ String formatAutofetchDelay(int timeout) {
   } else  {
     return String(timeout / 1000) + "s";
   }
+}
+
+String getCurrentTime() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Failed to obtain time");
+    return String("");
+  }
+
+  // Pad hour, min, sec with leading zeros
+  String hh = String(timeinfo.tm_hour);   // keep hour as-is for 24H
+  String mm = timeinfo.tm_min < 10 ? "0" + String(timeinfo.tm_min) : String(timeinfo.tm_min);
+  // String ss = timeinfo.tm_sec < 10 ? "0" + String(timeinfo.tm_sec) : String(timeinfo.tm_sec);
+
+  return hh + ":" + mm/* + ":" + ss*/;
+}
+
+String convertTo12HTime(String time24) {
+  Serial.println("Converting 24H time: " + time24);
+  int colonIndex = time24.indexOf(':');
+  if (colonIndex == -1) {
+    return time24; // Invalid format, return as is
+  }
+
+  int hour = time24.substring(0, colonIndex).toInt();
+  String minutes = time24.substring(colonIndex + 1);
+  String period = "AM";
+
+  if (hour >= 12) {
+    period = "PM";
+
+    if (hour > 12) {
+      hour -= 12;
+    }
+  } else if (hour == 0) {
+    hour = 12; // Midnight case
+  }
+
+  return String(hour) + ":" + minutes + " " + period;
 }
